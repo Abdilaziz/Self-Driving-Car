@@ -30,7 +30,7 @@ class ParticleFilter {
 	// Number of particles to draw
 	int num_particles; 
 	
-	const double small_numb = 0.00001;
+	const double small_numb = 0.0001;
 	
 	// Flag, if filter is initialized
 	bool is_initialized;
