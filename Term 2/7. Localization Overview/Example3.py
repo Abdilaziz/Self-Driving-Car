@@ -1,4 +1,6 @@
 
+# THis is called Histogram Localization (Where the world is made into a grid)
+
 p=[0.2, 0.2, 0.2, 0.2, 0.2]
 world=['green', 'red', 'red', 'green', 'green']
 measurements = ['red', 'green']
