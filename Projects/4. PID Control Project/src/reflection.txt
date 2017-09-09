@@ -1,0 +1,20 @@
+Effect of the P,I,D components
+
+	The P Component of the Controller is intended to make the error tracked 0 by responding 
+	to the current time calculation of the cross track error. The higher the Proportional Gain, 
+	the quicker the controller responds to the error at the current time step.
+
+	The I Compontent of the Controller is intended to reduce the average error over all timesteps approach 0. 
+	This is done by including the sum of all error as a part of the Controllers response.
+
+	The D Component of the Controller is inteded to make the cross track error aproach 0 steadly by taking 
+	into account the difference between the error in the current time step and the previous one. 
+	This component gets rid of issues like Overshoot.
+
+
+        
+Final Parameters.
+        
+	I used the twiddle algorithm to find my hyper parameters, but intial values where choosen with manual tuning. 
+	I wanted the intial parameters to be at a resonable starting point so that the twiddle algorithm can tune 
+	to an optimal value in as few time steps as possible.
