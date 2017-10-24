@@ -13,6 +13,8 @@ public:
 
 	vector<string> possible_labels = {"left","keep","right"};
 
+	vector<double> means;
+	vector<double> stds;
 
 	/**
   	* Constructor
@@ -27,6 +29,16 @@ public:
  	void train(vector<vector<double> > data, vector<string>  labels);
 
   	string predict(vector<double>);
+
+
+private:
+
+
+	double StandardDeviation(vector<double> samples);
+
+	double Variance(vector<double> samples);
+
+	double gaussian_prob(double obs, double mu, double sig);
 
 };
 

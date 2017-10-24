@@ -34,11 +34,29 @@ void GNB::train(vector<vector<double>> data, vector<string> labels)
 		  - Each label is one of "left", "keep", or "right".
 	*/
 
-	
+	// each observation is s, d, s_dot, d_dot
 
+	int num_vars = 4;
+	vector<vector<double>> structured_data;
 
+	for (int i = 0; i < labels.size(); i++) {
+		structured_data.push_back(vector<double>());
+	}
 
+	for (int i = 0; i < labels.size(); i++) {
+		for (int j = 0; j < possible_labels.size()) {
 
+			if (labels[i] == possible_labels[j] ) {
+				structured_data[j].push_back(data[i]);
+			}
+		}
+	}
+
+	for (int i = 0; i < possible_labels.size(), i++) {
+		means[i].push_back(1.0 * accumulate(structured_data[i].begin(), structured_data[i].end(), 0LL) / structured_data[i].size());
+
+		stds[i].push_back(StandardDeviation(structured_data[i]));
+	}
 
 }
 
@@ -64,6 +82,47 @@ string GNB::predict(vector<double> sample)
 
 	
 
+
+
+
+
 	return this->possible_labels[1];
 
+}
+
+
+
+
+
+
+
+double StandardDeviation(vector<double> samples) 
+{
+	return sqrt(Variance(samples));
+}
+
+double Variance(vector<double> samples)
+{
+     int size = samples.size();
+
+     double variance = 0;
+     double t = samples[0];
+     for (int i = 1; i < size; i++)
+     {
+          t += samples[i];
+          double diff = ((i + 1) * samples[i]) - t;
+          variance += (diff * diff) / ((i + 1.0) *i);
+     }
+
+     return variance / (size - 1);
+}
+
+
+double gaussian_prob(double obs, double mu, double sig)
+{
+	double num = (obs - mu)*(obs - mu);
+	double denum = 2*sig*sig;
+	double norm = 1 / sqrt(2*pi*sig**sig);
+
+	return norm*exp(-num/denum);
 }
