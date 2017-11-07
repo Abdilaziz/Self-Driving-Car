@@ -1,15 +1,25 @@
 OBJS = main.o classifier.o
-CC = g++
+CPP11 = -std=c++11
+CC = g++ $(CPP11)
 DEBUG = -g
-CFLAGS = -Wall -c $(DEBUG)
-LFLAGS = -Wall $(DEBUG)
+INCLUDES = -I ~/Documents/C++_Libraries/eigen/
+CFLAGS = $(DEBUG) $(INCLUDES)  -Wall
+LFLAGS = $(INCLUDES) -Wall
 
-prediction: $(OBJS)
-	$(CC) $(LFLAGS) $(OBJS) -o prediction
+
+naivebayes_pred: $(OBJS)
+	$(CC) $(LFLAGS) $(OBJS) -o naivebayes_pred
+
+
+main.o: main.cpp classifier.h
+	$(CC) $(CFLAGS) -c main.cpp
+
+classifier.o: classifier.h classifier.cpp
+	$(CC) $(CFLAGS) -c classifier.cpp
 
 
 clean:
-	\rm *.o *~ p1
+	\rm -f *.o *~ naivebayes_pred
 
 tar:
-	tar cfv p1.tar classifier.h classifier.cpp main.cpp
+	tar cfv naive_bayes.tar classifier.h classifier.cpp main.cpp makefile

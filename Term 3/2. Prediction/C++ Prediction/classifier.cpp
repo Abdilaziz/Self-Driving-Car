@@ -5,10 +5,31 @@
 #include <vector>
 #include "classifier.h"
 
+using namespace std;
+using Eigen::ArrayXd;
+
 /**
  * Initializes GNB
  */
 GNB::GNB() {
+
+	left_means = ArrayXd(4);
+	left_means << 0, 0, 0, 0;
+
+    left_sds = ArrayXd(4);
+    left_sds << 0 , 0, 0, 0;
+    
+    keep_means = ArrayXd(4);
+	keep_means << 0, 0, 0, 0;
+	
+	keep_sds = ArrayXd(4);
+	keep_sds << 0, 0, 0, 0;
+	
+	right_means = ArrayXd(4);
+	right_means << 0, 0, 0, 0;
+	
+	right_sds = ArrayXd(4);
+	right_sds << 0, 0, 0, 0;
 
 }
 
@@ -36,27 +57,57 @@ void GNB::train(vector<vector<double>> data, vector<string> labels)
 
 	// each observation is s, d, s_dot, d_dot
 
-	int num_vars = 4;
-	vector<vector<double>> structured_data;
-
-	for (int i = 0; i < labels.size(); i++) {
-		structured_data.push_back(vector<double>());
+	//For each label, compute ArrayXd of means, one for each data class (s, d, s_dot, d_dot).
+	//These will be used later to provide distributions for conditional probabilites.
+	//Means are stored in an ArrayXd of size 4.
+	
+	int left_size = 0;
+	int keep_size = 0;
+	int right_size = 0;
+	
+    //For each label, compute the numerators of the means for each class
+    //and the total number of data points given with that label.
+	for (int i = 0; i < labels.size(); i++){
+	    if (labels[i] == "left"){
+	        left_means += ArrayXd::Map(data[i].data(), data[i].size());
+	        left_size += 1;
+	    } 
+	    else if (labels[i] == "keep") {
+	        keep_means += ArrayXd::Map(data[i].data(), data[i].size());
+	        keep_size += 1;
+	    } else if (labels[i] == "right") {
+	        right_means += ArrayXd::Map(data[i].data(), data[i].size());
+	        right_size += 1;
+	    }
 	}
+	
+	//Compute the means. Each result is a ArrayXd of means (4 means, one for each class)..
+	left_means = left_means/left_size;
+    keep_means = keep_means/keep_size;
+	right_means = right_means/right_size;
 
-	for (int i = 0; i < labels.size(); i++) {
-		for (int j = 0; j < possible_labels.size()) {
-
-			if (labels[i] == possible_labels[j] ) {
-				structured_data[j].push_back(data[i]);
-			}
-		}
+	//Begin computation of standard deviations for each class/label combination.
+	ArrayXd data_point;
+	
+	//Compute numerators of the standard deviations.
+	for (int i = 0; i < labels.size(); i++){
+	    data_point = ArrayXd::Map(data[i].data(), data[i].size());
+	    if (labels[i] == "left"){
+	        left_sds += (data_point - left_means)*(data_point - left_means);
+	    } else if (labels[i] == "keep") {
+	        keep_sds += (data_point - keep_means)*(data_point - keep_means);
+	    } else if (labels[i] == "right") {
+	        right_sds += (data_point - right_means)*(data_point - right_means);
+	    }
 	}
+	
+	//compute standard deviations
+	left_sds = (left_sds/left_size).sqrt();
+    keep_sds = (keep_sds/keep_size).sqrt();
+    right_sds = (right_sds/right_size).sqrt();
 
-	for (int i = 0; i < possible_labels.size(), i++) {
-		means[i].push_back(1.0 * accumulate(structured_data[i].begin(), structured_data[i].end(), 0LL) / structured_data[i].size());
 
-		stds[i].push_back(StandardDeviation(structured_data[i]));
-	}
+
 
 }
 
@@ -79,50 +130,61 @@ string GNB::predict(vector<double> sample)
 		# TODO - complete this
 	*/
 
-
 	
-
-
-
-
-
-	return this->possible_labels[1];
+	//Assuming each label (left, keep, right) has same prior probability,
+	//just need to calculate product of conditional probabilities for each label.
+	// Gausian Probability calculation
+	double left_p = 1.0;
+	double keep_p = 1.0;
+	double right_p = 1.0; 
+	for (int i=0; i<4; i++){
+	    left_p *= (1.0/sqrt(2.0 * M_PI * pow(left_sds[i], 2))) * exp(-0.5*pow(sample[i] - left_means[i], 2)/pow(left_sds[i], 2));
+	    keep_p *= (1.0/sqrt(2.0 * M_PI * pow(keep_sds[i], 2))) * exp(-0.5*pow(sample[i] - keep_means[i], 2)/pow(keep_sds[i], 2));
+	    right_p *= (1.0/sqrt(2.0 * M_PI * pow(right_sds[i], 2))) * exp(-0.5*pow(sample[i] - right_means[i], 2)/pow(right_sds[i], 2));
+	}
+    
+    double probs[3] = {left_p, keep_p, right_p};
+    double max = left_p;
+    double max_index = 0;
+    for (int i = 1; i < 3; i++){
+        if (probs[i] > max) {
+            max = probs[i];
+            max_index = i;
+        }
+    }
+	
+	return this -> possible_labels[max_index];
 
 }
 
 
+// double StandardDeviation(vector<double> samples) 
+// {
+// 	return sqrt(Variance(samples));
+// }
+
+// double Variance(vector<double> samples)
+// {
+//      int size = samples.size();
+
+//      double variance = 0;
+//      double t = samples[0];
+//      for (int i = 1; i < size; i++)
+//      {
+//           t += samples[i];
+//           double diff = ((i + 1) * samples[i]) - t;
+//           variance += (diff * diff) / ((i + 1.0) *i);
+//      }
+
+//      return variance / (size - 1);
+// }
 
 
+// double gaussian_prob(double obs, double mu, double sig)
+// {
+// 	double num = (obs - mu)*(obs - mu);
+// 	double denum = 2*sig*sig;
+// 	double norm = 1 / sqrt(2*pi*sig**sig);
 
-
-
-double StandardDeviation(vector<double> samples) 
-{
-	return sqrt(Variance(samples));
-}
-
-double Variance(vector<double> samples)
-{
-     int size = samples.size();
-
-     double variance = 0;
-     double t = samples[0];
-     for (int i = 1; i < size; i++)
-     {
-          t += samples[i];
-          double diff = ((i + 1) * samples[i]) - t;
-          variance += (diff * diff) / ((i + 1.0) *i);
-     }
-
-     return variance / (size - 1);
-}
-
-
-double gaussian_prob(double obs, double mu, double sig)
-{
-	double num = (obs - mu)*(obs - mu);
-	double denum = 2*sig*sig;
-	double norm = 1 / sqrt(2*pi*sig**sig);
-
-	return norm*exp(-num/denum);
-}
+// 	return norm*exp(-num/denum);
+// }

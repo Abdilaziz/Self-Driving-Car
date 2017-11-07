@@ -5,16 +5,29 @@
 #include <fstream>
 #include <math.h>
 #include <vector>
+#include <Eigen/Dense>
 
 using namespace std;
+using Eigen::ArrayXd;
 
 class GNB {
 public:
 
 	vector<string> possible_labels = {"left","keep","right"};
 
-	vector<double> means;
-	vector<double> stds;
+	// vector<double> means;
+	// vector<double> stds;
+
+
+	ArrayXd left_means;
+	ArrayXd left_sds;
+	
+	ArrayXd keep_means;
+	ArrayXd keep_sds;
+	
+	ArrayXd right_means;
+	ArrayXd right_sds;
+
 
 	/**
   	* Constructor
