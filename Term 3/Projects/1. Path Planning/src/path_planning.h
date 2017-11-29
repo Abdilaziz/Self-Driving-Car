@@ -11,8 +11,8 @@
 #include "vehicle.h"
 #include "road.h"
 #include "constants.h"
-
 #include "spline.h"
+#include "costs.h"
 
 using namespace std;
 
@@ -20,15 +20,15 @@ class Path_Planner {
 
 	private:
 
-		int points_in_horizon;
+		int new_points;
 		STATES state;
 
 		Map map;
-		vector<vector<double>> trajectory;
+		vector<vector<double>> current_trajectory;
 		Road road;
 		Vehicle my_car;
 		int prev_path_size;
-		vector<vector<double>> points_for_spline;
+		double duration;
 
 
 		vector<double> JMT(vector< double> start, vector <double> end, double T);
@@ -41,7 +41,7 @@ class Path_Planner {
 		vector<vector<double>> state_transition(vector<STATES> possible_next_states);
 		vector<vector<double>> basic_state_transition();
 
-		vector<vector<double>> generate_trajectory(STATES state);
+		vector<vector<double>> get_target(STATES state);
 
 
 		vector<vector<double>> startVehicle();
@@ -52,7 +52,7 @@ class Path_Planner {
 
 		void set_state(LANES current_lane, LANES target_lane);
 
-		vector<vector<double>> trajectory_generation(double ref_vel);
+		vector<vector<double>> proeduce_path(vector<double> target_s, vector<double> target_d);
 		
 
 		
@@ -65,7 +65,7 @@ class Path_Planner {
 		Path_Planner();
 		~Path_Planner(){};
 
-		vector<vector<double>> get_new_trajectory(Map &map, Road &road, Vehicle &my_car, vector<vector<double>> trajectory, int prev_path_size, vector<vector<double>> points_for_spline);
+		vector<vector<double>> get_new_trajectory(Map &map, Road &road, Vehicle &my_car, vector<vector<double>> trajectory, int prev_path_size);
 
 
 

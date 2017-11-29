@@ -10,12 +10,11 @@
 #include "json.hpp"
 
 #include <math.h>
+#include "constants.h"
 #include "map.h"
 #include "vehicle.h"
-#include "path_planning.h"
 #include "road.h"
-#include "prediction.h"
-#include "constants.h"
+#include "path_planning.h"
 
 
 using namespace std;
@@ -38,8 +37,6 @@ string hasData(string s) {
   return "";
 }
 
-double deg2rad(double x) { return x * pi() / 180; }
-
 
 int main() {
   uWS::Hub h;
@@ -48,13 +45,12 @@ int main() {
   // Waypoint map to read from
   string map_file_ = "../data/highway_map.csv";
 
-  Map map = Map(map_file_);
+  Map world = Map(map_file_);
   Road road;
   Vehicle my_car;
   Path_Planner path_planner;
-  Prediction prediction;
 
-  h.onMessage([&map, &road, &my_car, &path_planner, &prediction](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+  h.onMessage([&world, &road, &my_car, &path_planner](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -106,80 +102,27 @@ int main() {
             // total velocity (m/s) multiplied by the time elapsed into the future (s).
 
 
-            // USE PREVIOUS PATH IF AVAIBLE TO SMOOTHEN THE TRAJECTORY BETWEEN TIMESTEPS
-            int prev_path_size = previous_path_x.size();
-
-            double ref_x = car_x;
-            double ref_y = car_y;
-            double ref_yaw = deg2rad(car_yaw);
-
-            double ref_speed = car_speed;
-
-            double ref_s = car_s;
-            double ref_d = car_d;
-
-            double ref_x_prev;
-            double ref_y_prev;
-
-            vector<double> ptsx;
-            vector<double> ptsy;
-
-            // if prev path is almost empty, use the cars most recent localization values as the starting reference
-            // other wise use the paths enpoints as a starting reference
-            // this ensures smoothness from timestep to timestep
-            if (prev_path_size < 2) 
-            {
-              // ensures the points are tangent
-              // 2 points added are the prev timesteps observation and the current one
-              ref_x_prev = car_x - cos(car_yaw);
-              ref_y_prev = car_y - sin(car_yaw);
-
-            }
-            else 
-            {
-              ref_x = previous_path_x[prev_path_size -1];
-              ref_y = previous_path_y[prev_path_size -1];
-
-              ref_x_prev = previous_path_x[prev_path_size-2];
-              ref_y_prev = previous_path_y[prev_path_size-2];
-
-              // ensures the points are tangent
-
-              ref_yaw = atan2(ref_y - ref_y_prev, ref_x - ref_x_prev );
-
-              auto old_frenet_coords = map.getFrenet(ref_x_prev, ref_y_prev, ref_yaw);
-              auto frenet_coords =  map.getFrenet(ref_x, ref_y, ref_yaw);
-
-              ref_s = frenet_coords[0];
-              ref_d = frenet_coords[1];
+            world.update_local_waypoints( car_x,  car_y,  car_yaw);
 
 
-              ref_speed = (ref_s - old_frenet_coords[0])/DELTA_T;
-
-
-            }
-
-            std::cout << "REF D RECIEVED: " << ref_d << endl;
-
-            ptsx.push_back(ref_x_prev);
-            ptsx.push_back(ref_x);
-
-
-            ptsy.push_back(ref_y_prev);
-            ptsy.push_back(ref_y);
-
-            vector<vector<double>> points_for_spline = {ptsx, ptsy};
-
-
-            my_car.set_main_vehicle_values(ref_x, ref_y, car_speed, ref_s, ref_d, ref_yaw);
-            //my_car.set_main_vehicle_values(car_x, car_y, car_speed, car_s, car_d, car_yaw);
+            my_car.set_main_vehicle_values( world, car_x,  car_y,  car_s,  car_d,  car_yaw, car_speed, 
+                                            previous_path_x, previous_path_y,  end_path_s,  end_path_d );
 
 
             vector<Vehicle> left_lane;
             vector<Vehicle> center_lane;
             vector<Vehicle> right_lane;
 
+            int prev_path_size = previous_path_x.size();
+            int subpath_size = min(OLD_POINTS_TO_KEEP, prev_path_size);
+
+            double traj_start_time = subpath_size * DELTA_T;
+            double duration = POINTS_TO_TARGET*DT - subpath_size*DELTA_T;
+
+            map<int, vector<vector<double>>> predictions;
+
             // organize observed vehicles into seperate vectors for what lane they are currently in
+            // and generate predictions
             for (int i = 0; i < sensor_fusion.size(); i++) {
 
               int id = sensor_fusion[i][0];
@@ -192,6 +135,11 @@ int main() {
               double v = sqrt(vx*vx + vy*vy);
 
               Vehicle obsv_vehicle = Vehicle(id, x, y, v, s, d);
+
+              vector<vector<double>> prediction = obsv_vehicle.generatePrediction(traj_start_time, duration);
+
+              predictions[id] = prediction;
+
               LANES lane = obsv_vehicle.getLane();
 
               if (lane == LANES::LEFT) {
@@ -203,44 +151,27 @@ int main() {
               }
             }
 
-            
-            // previous_path that is returned from the simulator is the points from
-            // the previously sent trajectory that have yet to be used
-
-            // each timestep we only add points to the end of the path so that
-            // the trajectory always sent is the same number of points (50)
-
-            // for (int i = 0; i < prev_path_size; i++ ) {
-            //   next_x_vals.push_back(previous_path_x[i]);
-            //   next_y_vals.push_back(previous_path_y[i]);
-            // }
+            road.setPredictions(predictions);
 
             road.setVehiclesOnRoad(left_lane, center_lane, right_lane);
 
-            // vector<vector<double>> current_trajectory = {next_x_vals, next_y_vals};
+
+
 
 
             vector<vector<double>> current_trajectory = {previous_path_x, previous_path_y};
 
 
 
-            vector<vector<double>> new_trajectory = path_planner.get_new_trajectory(map, road, my_car, current_trajectory, prev_path_size, points_for_spline);
+            vector<vector<double>> new_trajectory = path_planner.get_new_trajectory(world, road, my_car, current_trajectory, subpath_size);
 
-            // straight path
-            //vector<vector<double>> examplePath;
-            //examplePath =  simple_path(car_x, car_y, car_yaw);
-            //examplePath = circular_path (previous_path_x, previous_path_y, car_x, car_y, car_yaw);
-            //examplePath = straight_on_lane( car_s, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-            //examplePath = splines_lane( sensor_fusion , map_waypoints_s, map_waypoints_x, map_waypoints_y, previous_path_x, previous_path_y, end_path_s, end_path_d ,  car_x,  car_y,  car_yaw,  car_s, car_d);
 
-            //next_x_vals = examplePath[0];
-            //next_y_vals = examplePath[1];
 
             next_x_vals = new_trajectory[0];
             next_y_vals = new_trajectory[1];
 
-            std::cout << "sent trajectory to sim. Size: " << next_x_vals.size() << endl; 
-            std::cout << " " << endl;
+            // std::cout << "sent trajectory to sim. Size: " << next_x_vals.size() << endl; 
+            // std::cout << " " << endl;
 
 
           	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds

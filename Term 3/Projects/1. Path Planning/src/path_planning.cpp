@@ -2,10 +2,11 @@
 
 
 Path_Planner::Path_Planner() {
-	this->state = STATES::START;
+	//this->state = STATES::START;
+	this->state = STATES::KEEP_LANE;
 }
 
-string slane(LANES lane){
+string lane_to_string(LANES lane){
   if (lane == LANES::LEFT){
     return "LEFT";
   } else if(lane == LANES::CENTER){
@@ -15,14 +16,23 @@ string slane(LANES lane){
   }
 }
 
-string sstate(STATES state){
+string state_to_string(STATES state){
   if (state == STATES::KEEP_LANE){
     return "KEEP_LANE";
-  } else if(state == STATES::CHANGE_LEFT){
+  } 
+  else if (state == STATES::PREPARE_CHANGE_LEFT ) {
+  	return "PREPARE_CHANGE_LEFT";
+  }
+  else if (state == STATES::PREPARE_CHANGE_RIGHT ){
+  	return "PREPARE_CHANGE_RIGHT";
+  }
+  else if(state == STATES::CHANGE_LEFT){
     return "CHANGE_LEFT";
-  } else if(state == STATES::START){
+  } 
+  else if(state == STATES::START){
     return "START";
-  } else{
+  } 
+  else{
     return "CHANGE_RIGHT";
   }
 }
@@ -105,23 +115,42 @@ vector<STATES> Path_Planner::possible_next_states() {
 	vector<STATES> possible_new_state;
 	possible_new_state.push_back(STATES::KEEP_LANE);
 
+
+
+	bool car_ahead = this->road.isVehicleAhead(this->my_car, cur_lane);
+	bool car_left = true;
+	bool car_right = true;
+	int left_lane = (((int) cur_lane)-1);
+	int right_lane = (((int) cur_lane) +1); 
+	if (left_lane >= 0) {
+		car_left = !(this->road.isLaneChangeSafe(this->my_car,(LANES) left_lane));
+		//cout << "Car on left!!!!!!!!!!!" << endl;
+	}
+	if (right_lane <= 2) {
+		car_right = !(this->road.isLaneChangeSafe(this->my_car,(LANES) right_lane));
+		//cout << "Car on right!!!!!!!!!!" << endl;
+	}
+
 	if (cur_state == STATES::KEEP_LANE) {
-
-		possible_new_state.push_back(STATES::PREPARE_CHANGE_LEFT);
-		possible_new_state.push_back(STATES::PREPARE_CHANGE_RIGHT);
-
+		if (car_ahead ) {
+ 			possible_new_state.push_back(STATES::PREPARE_CHANGE_LEFT);
+ 			possible_new_state.push_back(STATES::PREPARE_CHANGE_RIGHT);
+		}
 	}
 	else if (cur_state == STATES::PREPARE_CHANGE_LEFT) {
-		if (cur_lane != LANES::LEFT) {
-			possible_new_state.push_back(STATES::PREPARE_CHANGE_LEFT);
-			possible_new_state.push_back(STATES::CHANGE_LEFT);
-		}
+		 	possible_new_state.push_back(STATES::PREPARE_CHANGE_RIGHT);
+		 	possible_new_state.push_back(STATES::CHANGE_LEFT);
 	}
 	else if (cur_state == STATES::PREPARE_CHANGE_RIGHT) {
-		if (cur_lane != LANES::RIGHT) {
-			possible_new_state.push_back(STATES::PREPARE_CHANGE_RIGHT);
-			possible_new_state.push_back(STATES::CHANGE_RIGHT);
-		}
+		
+		 	possible_new_state.push_back(STATES::PREPARE_CHANGE_LEFT);
+		 	possible_new_state.push_back(STATES::CHANGE_RIGHT);
+	}
+	else if (cur_state == STATES::CHANGE_RIGHT) {
+		possible_new_state.push_back(STATES::CHANGE_RIGHT);
+	}
+	else if (cur_state == STATES::CHANGE_LEFT ) {
+		possible_new_state.push_back(STATES::CHANGE_LEFT);
 	}
 
 	return possible_new_state;
@@ -132,21 +161,53 @@ vector<vector<double>> Path_Planner::state_transition(vector<STATES> possible_ne
 
 	vector<vector<double>> new_trajectory;
 
-	// vector <double> costs;
-	// vector< vector<vector<double>>> final_trajectories;
+	vector <double> costs;
+	vector< vector<vector<double>>> final_trajectories;
+
+	vector<STATES> states_tested;
+
 	
-	// for (vector<STATES>::iterator it = possible_next_states.begin(); it!=possible_next_states.end(); ++it ) {
+	
+	for (vector<STATES>::iterator it = possible_next_states.begin(); it!=possible_next_states.end(); ++it ) {
+		
+		//cout << "State: " << state_to_string(*it) << " ";
+		Costs costFunctions;
+		vector<vector<double>> target_s_and_d =  this->get_target(*it);
+		//cout << endl;
+		//cout << "End S: ";
 
-	// 	vector<vector<double>> trajectory =  this->generate_trajectory(*it);
-	// 	double cost = calculate_cost(this->my_car, this->road, trajectory);
-	// 	costs.push_back(cost);
-	// 	final_trajectories.push_back(trajectory);
-	// }
+		// for ( auto i = target_s_and_d[1].begin(); i != target_s_and_d[1].end(); ++i ) {
+		// 	//cout << *i << " ";
+		// }
+		// //cout << endl;
 
-	// vector<double>::iterator best_cost = min_element(begin(costs), end(costs));
-	// int best_idx = distance(begin(costs), best_cost);
+		// //cout << "End D: ";
 
-	// new_trajectory = final_trajectories[best_idx];
+		// for ( auto i = target_s_and_d[3].begin(); i != target_s_and_d[3].end(); ++i ) {
+		// 	//cout << *i << " ";
+		// }
+		//cout << endl;
+
+		vector<vector<double>> trajectory = create_JMT(target_s_and_d[0], target_s_and_d[1], target_s_and_d[2], target_s_and_d[3], this->duration );
+		double cost = costFunctions.calculate_total_cost(trajectory[0], trajectory[1], this->road.getPredictions());
+		costs.push_back(cost);
+		final_trajectories.push_back(target_s_and_d);
+		states_tested.push_back(*it);
+		//cout << "Cost: " << cost << endl;
+	}
+
+	//cout << endl;
+
+	vector<double>::iterator best_cost = min_element(begin(costs), end(costs));
+	int best_idx = distance(begin(costs), best_cost);
+
+	vector<vector<double>> target = final_trajectories[best_idx];
+
+	//cout << "State Choosen: " << state_to_string(states_tested[best_idx]) << endl;
+
+	this->state = states_tested[best_idx];
+
+	new_trajectory = proeduce_path(target[1], target[3]);
 
 
 	return new_trajectory;
@@ -154,137 +215,111 @@ vector<vector<double>> Path_Planner::state_transition(vector<STATES> possible_ne
 
 vector<vector<double>> Path_Planner::basic_state_transition() {
 
-	vector<vector<double>> new_trajectory;
+	vector<vector<double>> target_s_and_d;
 	LANES my_lane = this->my_car.getLane();
 
-	cout << "STATE: " << sstate(this->state) << endl;
-	cout << "LANE: " << slane(my_lane) << endl;
-
-
-	if (this->prev_path_size < POINTS_PER_TRAJECTORY) {
-
 		if (this->state == STATES::START ) {
-			new_trajectory = this->startVehicle();
+			target_s_and_d = this->startVehicle();
 			this->state = STATES::KEEP_LANE;
 		}
 		else if ( this->state == STATES::KEEP_LANE ) {
 
-			//new_trajectory = this->keep_in_lane();
-
 			if (this->road.isVehicleAhead(this->my_car, my_lane)) {
 
-				cout<< "vehicle ahead " << endl;
-				//LANES target_lane =  this->road.availableLane(this->my_car);
-				//if (target_lane == my_lane) {
+				//cout<< "vehicle ahead " << endl;
+				LANES target_lane =  this->road.availableLane(this->my_car);
+				if (target_lane == my_lane) {
 					// nothing available
-					new_trajectory = this->slow_down();
+					target_s_and_d = this->slow_down();
 					this->state = STATES::KEEP_LANE;
-				// }
-				// else {
+				}
+				else {
 
-					// new_trajectory = this->change_lane(target_lane);
-					// if (target_lane == LANES::LEFT){
-					// 	this->state = STATES::CHANGE_LEFT;
-					// }
-					// else if (target_lane == LANES::RIGHT) {
-					// 	this->state = STATES::CHANGE_RIGHT;
-					// }
-					// else {
-					// 	if (my_lane == LANES::LEFT) {
-					// 		this->state = STATES::CHANGE_RIGHT;
-					// 	}
-					// 	else {
-					// 		this->state = STATES::CHANGE_LEFT;
-					// 	}
-					// }
+					target_s_and_d = this->change_lane(target_lane);
+					if (target_lane == LANES::LEFT){
+						this->state = STATES::CHANGE_LEFT;
+					}
+					else if (target_lane == LANES::RIGHT) {
+						this->state = STATES::CHANGE_RIGHT;
+					}
+					else {
+						if (my_lane == LANES::LEFT) {
+							this->state = STATES::CHANGE_RIGHT;
+						}
+						else {
+							this->state = STATES::CHANGE_LEFT;
+						}
+					}
 					
-				//}
+				}
 
 			}
 			else {
-				new_trajectory = this->keep_in_lane();
+				target_s_and_d = this->keep_in_lane();
 				this->state = STATES::KEEP_LANE;
 			}
 		}
 		else {
 			if (this->road.isVehicleAhead( this->my_car , my_lane)) {
-				new_trajectory = this->slow_down();
+				target_s_and_d = this->slow_down();
 				this->state = STATES::KEEP_LANE;
 			}
 			else {
-				new_trajectory = this->keep_in_lane();
+				target_s_and_d = this->keep_in_lane();
 				this->state = STATES::KEEP_LANE;
 			}
 
 
 		}
-	}
-	else {
-		new_trajectory = this->trajectory;
-	}
+	//}
+	// else {
+	// 	target_s_and_d = this->trajectory;
+	// }
 
-	return new_trajectory;
+	vector<vector<double>> new_trajectory = create_JMT(target_s_and_d[0], target_s_and_d[1], target_s_and_d[2], target_s_and_d[3], this->duration );
+	vector<vector<double>> new_path = proeduce_path(target_s_and_d[1], target_s_and_d[3]);
+
+	return new_path;
 }
 
 
 
+vector<vector<double>> Path_Planner::get_target(STATES state) {
 
-
-
-vector<vector<double>> Path_Planner::generate_trajectory(STATES state) {
-
-	vector<vector<double>> new_trajectory;
+	vector<vector<double>> target_s_and_d;
 
 	if (state == STATES::START) {
-		new_trajectory = this->startVehicle();
+		target_s_and_d = this->startVehicle();
 	}
 	else if (state == STATES::KEEP_LANE) {
-		new_trajectory = this->keep_in_lane();
+		target_s_and_d = this->keep_in_lane();
 	}
 	else if (state == STATES::PREPARE_CHANGE_LEFT || state == STATES::PREPARE_CHANGE_RIGHT ) {
-		new_trajectory = this->slow_down();
+		target_s_and_d = this->slow_down();
 	}
 	else if (state == STATES::CHANGE_LEFT || state == STATES::CHANGE_RIGHT) {
-		new_trajectory = this->change_lane(state);
+		target_s_and_d = this->change_lane(state);
 	}
 
-	return new_trajectory;
+	return target_s_and_d;
 }
 
 
-vector<vector<double>> Path_Planner::get_new_trajectory(Map &map, Road &road, Vehicle &my_car, vector<vector<double>> trajectory, int prev_path_size, vector<vector<double>> points_for_spline) {
+vector<vector<double>> Path_Planner::get_new_trajectory(Map &map, Road &road, Vehicle &my_car, vector<vector<double>> trajectory, int prev_path_size) {
 
 	this->map = map;
-
-	this->trajectory = trajectory;
-
-
+	this->current_trajectory = trajectory;
 	this->my_car = my_car;
 	this->road = road;
 	this->prev_path_size = prev_path_size;
-	this->points_for_spline = points_for_spline;
-
-	this->points_in_horizon =  POINTS_PER_TRAJECTORY - this->prev_path_size;
+	this->new_points =  POINTS_PER_TRAJECTORY - prev_path_size;
+	this->duration = POINTS_TO_TARGET*DT - prev_path_size*DELTA_T;
+	//cout << "NEW POINTS: " << this->new_points << endl;
 
 	vector<vector<double>> new_trajectory;
-
-	// vector<vector<double>> updated_trajectory;
-	// vector<STATES> possible_new_state;
-
-	// if ( prev_path_size < POINTS_PER_TRAJECTORY ) {
-
-
-	// 	possible_new_state = this->possible_next_states();
-
-	// 	new_trajectory = this->state_transition(possible_next_states);
-
-	// }
-
-	// BASIC STATES TRANSITION
-
-	new_trajectory = this->basic_state_transition();
-
-
+	vector<STATES> possible_new_state;
+	possible_new_state = this->possible_next_states();
+	new_trajectory = this->state_transition(possible_new_state);
 
 	return new_trajectory;
 }
@@ -292,15 +327,13 @@ vector<vector<double>> Path_Planner::get_new_trajectory(Map &map, Road &road, Ve
 
 vector<vector<double>> Path_Planner::startVehicle() {
 
-	cout << "Start trajectory" << endl;
-
-	//this->points_in_horizon = 4*POINTS_PER_TRAJECTORY;
-	double duration = POINTS_TO_TARGET * DT - this->prev_path_size * DELTA_T;
-
-	double target_velocity = SPEED_LIMIT/2;
+	//cout << "Start trajectory" << endl;
 
 
-	double target_s = this->my_car.getS() + duration * target_velocity;
+	double target_velocity = MAX_INSTANTANEOUS_ACCEL/4 * duration;
+
+
+	double target_s = this->my_car.getS() + this->duration * target_velocity;
 
 	vector<double> start_s;
 	vector<double> end_s;
@@ -308,32 +341,32 @@ vector<vector<double>> Path_Planner::startVehicle() {
 	vector<double> start_d;
 	vector<double> end_d;
 
-	start_s = { this->my_car.getS(), this->my_car.getV(), 0.0 };
+	start_s = { this->my_car.getS(), this->my_car.getS_D(), this->my_car.getS_DD() };
 
 	end_s = {target_s, target_velocity, 0.0};
 
-	start_d = {this->lane_to_d(this->my_car.getLane()), 0.0, 0.0};
+	start_d = { this->my_car.getD(), this->my_car.getD_D(), this->my_car.getD_DD() };
 
 	end_d = {this->lane_to_d(this->my_car.getLane()), 0.0, 0.0};
 
-	return this->create_JMT(start_s, end_s, start_d, end_d, duration);
-	//return { { start_s, end_s}, {start_d, end_d} };
+	return { start_s, end_s, start_d, end_d };
 }
 
 vector<vector<double>> Path_Planner::keep_in_lane() {
 
-	cout << "KEEP in lane trajectory" << endl;
+	//cout << "KEEP in lane trajectory ";
 
-	//this->points_in_horizon = 2*POINTS_PER_TRAJECTORY;
-	double duration = POINTS_TO_TARGET * DT - this->prev_path_size * DELTA_T;
-
-	double old_velocity = this->my_car.getV();
+	double old_velocity = this->my_car.getS_D();
 	double old_position = this->my_car.getS();
 
-	double target_velocity = min(old_velocity*1.2, SPEED_LIMIT);
+	double velocity_car_ahead = this->road.getVehicleAhead().getS_D();
 
-	double target_s = old_position + duration * target_velocity;
 
+	double target_velocity;
+
+	target_velocity = min(old_velocity+ MAX_INSTANTANEOUS_ACCEL/4 * this->duration, SPEED_LIMIT);
+
+	double target_s = old_position + this->duration * target_velocity;
 
 	vector<double> start_s;
 	vector<double> end_s;
@@ -341,35 +374,40 @@ vector<vector<double>> Path_Planner::keep_in_lane() {
 	vector<double> start_d;
 	vector<double> end_d;
 
-	start_s = { old_position, old_velocity, 0.0};
+	start_s = { this->my_car.getS(), this->my_car.getS_D(), this->my_car.getS_DD() };
 
 	end_s = {target_s, target_velocity, 0.0};
 
-	start_d = {this->my_car.getD() , 0.0, 0.0};
+	start_d = { this->my_car.getD(), this->my_car.getD_D(), this->my_car.getD_DD() };
 
 	end_d = {this->lane_to_d( this->my_car.getLane() ) , 0.0, 0.0};
 
 
-	return this->create_JMT(start_s, end_s, start_d, end_d, duration);
-	//return { { start_s, end_s}, {start_d, end_d} };
+	return { start_s, end_s, start_d, end_d };
 }
 
 
 vector<vector<double>> Path_Planner::slow_down() {
 
-	cout << "slow down trajectory" << endl;
+	//cout << "slow down trajectory ";
 
-	//this->points_in_horizon = 2*POINTS_PER_TRAJECTORY;
-	double duration = POINTS_TO_TARGET * DT - this->prev_path_size * DELTA_T;
+	double position_car_ahead = this->road.getVehicleAhead().getS();
+	double velocity_car_ahead = this->road.getVehicleAhead().getS_D();
 
-	double velocity_car_ahead = this->road.getSPEED();
-
-	double old_velocity = this->my_car.getV();
+	double old_velocity = this->my_car.getS_D();
 	double old_position = this->my_car.getS();
 
-	//double target_velocity = max(old_velocity*0.75, SPEED_LIMIT/2);
-	double target_velocity = velocity_car_ahead;
-	double target_s = old_position + duration * target_velocity;
+	double target_velocity;
+	double target_s;
+
+	target_velocity = max(old_velocity - MAX_INSTANTANEOUS_ACCEL/4 * this->duration, velocity_car_ahead);
+	if (position_car_ahead > 0 ) {
+		target_s = position_car_ahead - 10;
+	}
+	else {
+		target_s = old_position + target_velocity*this->duration;
+	}
+
 
 	vector<double> start_s;
 	vector<double> end_s;
@@ -378,20 +416,19 @@ vector<vector<double>> Path_Planner::slow_down() {
 	vector<double> end_d;
 
 
-	start_s = { old_position, old_velocity, 0.0 };
+	start_s = { this->my_car.getS(), this->my_car.getS_D(), this->my_car.getS_DD() };
 	end_s = { target_s, target_velocity, 0.0 };
 
-	start_d = {this->my_car.getD() , 0.0, 0.0};
+	start_d = { this->my_car.getD(), this->my_car.getD_D(), this->my_car.getD_DD() };
 
-	end_d = {this->lane_to_d( this->my_car.getLane() ) , 0.0, 0.0};
+	end_d = {this->lane_to_d( this->my_car.getLane()) , 0.0, 0.0};
 
-	return create_JMT(start_s, end_s, start_d, end_d, duration);
-	//return { { start_s, end_s}, {start_d, end_d} };
+	return {  start_s, end_s, start_d, end_d };
 }
 
 vector<vector<double>> Path_Planner::change_lane(STATES state) {
 
-	cout << "change lane trajectory" << endl;
+	//cout << "change lane trajectory ";
 
 	LANES target_lane;
 
@@ -414,14 +451,14 @@ vector<vector<double>> Path_Planner::change_lane(STATES state) {
 		}
 	}
 
-	//this->points_in_horizon = 2*POINTS_PER_TRAJECTORY;
-	double duration = POINTS_TO_TARGET * DT - this->prev_path_size * DELTA_T;
+	//cout << "change lane State: " << state_to_string(state) << endl;
+	//cout << "change lane Target Lane: " << lane_to_string(target_lane) << endl;
 
-	double old_velocity = this->my_car.getV();
+	double old_velocity = this->my_car.getS_D();
 	double old_position = this->my_car.getS();
 
 	double target_velocity = old_velocity;
-	double target_s = old_position + duration * target_velocity;
+	double target_s = old_position + this->duration * target_velocity;
 
 	vector<double> start_s;
 	vector<double> end_s;
@@ -429,29 +466,26 @@ vector<vector<double>> Path_Planner::change_lane(STATES state) {
 	vector<double> start_d;
 	vector<double> end_d;
 
-	start_s = { old_position, old_velocity, 0.0 };
+	start_s = { this->my_car.getS(), this->my_car.getS_D(), this->my_car.getS_DD() };
 	end_s = {target_s, target_velocity, 0.0 };
 
 	double target_d = this->lane_to_d(target_lane);
 
-	start_d = {this->my_car.getD() , 0.0, 0.0};
+	start_d = { this->my_car.getD(), this->my_car.getD_D(), this->my_car.getD_DD() };
+
 	end_d = { target_d , 0.0, 0.0 };
 
-	return create_JMT(start_s, end_s, start_d, end_d, duration);
-	//return { { start_s, end_s}, {start_d, end_d} };
+	return { start_s, end_s, start_d, end_d };
 }
 
 vector<vector<double>> Path_Planner::change_lane(LANES target_lane) {
 
 
-	//this->points_in_horizon = 2*POINTS_PER_TRAJECTORY;
-	double duration = POINTS_TO_TARGET * DT - this->prev_path_size * DELTA_T;
-
-	double old_velocity = this->my_car.getV();
+	double old_velocity = this->my_car.getS_D();
 	double old_position = this->my_car.getS();
 
 	double target_velocity = old_velocity;
-	double target_s = old_position + duration * target_velocity;
+	double target_s = old_position + this->duration * target_velocity;
 
 	vector<double> start_s;
 	vector<double> end_s;
@@ -459,63 +493,31 @@ vector<vector<double>> Path_Planner::change_lane(LANES target_lane) {
 	vector<double> start_d;
 	vector<double> end_d;
 
-	start_s = { old_position, old_velocity, 0.0 };
+	start_s = { this->my_car.getS(), this->my_car.getS_D(), this->my_car.getS_DD() };
 	end_s = {target_s, target_velocity, 0.0 };
 
 	double target_d = this->lane_to_d(target_lane);
 
-	start_d = {this->my_car.getD() , 0.0, 0.0};
+	start_d = { this->my_car.getD(), this->my_car.getD_D(), this->my_car.getD_DD() };
+
 	end_d = { target_d , 0.0, 0.0 };
 
-	return create_JMT(start_s, end_s, start_d, end_d, duration);
-	//return { { start_s, end_s}, {start_d, end_d} };
+	return { start_s, end_s, start_d, end_d };
 }
 
 vector<vector<double>> Path_Planner::create_JMT(vector<double> start_s, vector<double> end_s, vector<double> start_d, vector<double> end_d, double duration){
 
-	cout << "Start S: ";
-
-	for ( auto i = start_s.begin(); i != start_s.end(); ++i ) {
-		cout << *i << " ";
-	}
-	cout << endl;
-
-	cout << "End S: ";
-
-	for ( auto i = end_s.begin(); i != end_s.end(); ++i ) {
-		cout << *i << " ";
-	}
-	cout << endl;
-
-	cout << "Start D: ";
-
-	for ( auto i = start_d.begin(); i != start_d.end(); ++i ) {
-		cout << *i << " ";
-	}
-	cout << endl;
-
-	cout << "End D: ";
-
-	for ( auto i = end_d.begin(); i != end_d.end(); ++i ) {
-		cout << *i << " ";
-	}
-	cout << endl;
-
-	
-	//double T = this->points_in_horizon * DELTA_T;
-
-	//double T =   POINTS_TO_TARGET * DELTA_T;
-
-	cout << "Horizon: " << duration << endl;
-
 	vector<double> poly_s = this->JMT(start_s, end_s, duration);
 	vector<double> poly_d = this->JMT(start_d, end_d, duration);
 
-	double t, next_s, next_d, mod_s, mod_d;
-	vector <double> XY;
-	for(int i = 1; i <= POINTS_TO_TARGET; i++) {
+	vector<double> new_trajectory_s;
+	vector<double> new_trajectory_d;
 
-		//t = DELTA_T*i;
+	double t, next_s, next_d, mod_s, mod_d;
+
+	vector <double> XY;
+	for(int i = 0; i < POINTS_TO_TARGET; i++) {
+
 		t = i * duration/POINTS_TO_TARGET;
 
 
@@ -529,104 +531,112 @@ vector<vector<double>> Path_Planner::create_JMT(vector<double> start_s, vector<d
 		mod_s = fmod(next_s, MAX_S);
 		mod_d = fmod(next_d, LANE_WIDTH*3);
 
-		XY = map.getXY(mod_s + i*30, mod_d);
+		new_trajectory_s.push_back(mod_s);
 
-		this->points_for_spline[0].push_back(XY[0]);
-		this->points_for_spline[1].push_back(XY[1]);
+		new_trajectory_d.push_back(mod_d);
 	}
 
-
-	// tk::spline s;
-	// s.set_points(new_trajectory[0], new_trajectory[1]);
-	// for (int i = 0; i< new_trajectory[0].size(); i++) {
-	// 	new_trajectory[1][i] = s(new_trajectory[0][i]);
-	// }
-
-	cout << "SIZE OF POINTS FOR SPLINE: " << this->points_for_spline[0].size() << endl;
-
-	// int lane = (int) d_to_lane(end_d[0]);
-	// double car_s = start_s[0];
-
-	// vector<double> next_wp0 = map.getXY(car_s + 30, (2 + 4*lane));
-	// vector<double> next_wp1 = map.getXY(car_s + 60, (2 + 4*lane));
-	// vector<double> next_wp2 = map.getXY(car_s + 90, (2 + 4*lane));
-
-	// this->points_for_spline[0].push_back(next_wp0[0]);
-	// this->points_for_spline[0].push_back(next_wp1[0]);
-	// this->points_for_spline[0].push_back(next_wp2[0]);
-
-	// this->points_for_spline[1].push_back(next_wp0[1]);
-	// this->points_for_spline[1].push_back(next_wp1[1]);
-	// this->points_for_spline[1].push_back(next_wp2[1]);
-
-	vector<vector<double>> new_trajectory = trajectory_generation(end_s[1]);
-
-
-
-
-	
-	return new_trajectory;
+	return {new_trajectory_s, new_trajectory_d};
 }
 
 
 
-vector<vector<double>> Path_Planner::trajectory_generation(double ref_vel) {
+vector<vector<double>> Path_Planner::proeduce_path(vector<double> target_s, vector<double> target_d) {
+
+	//cout <<  "Producing Path" << endl;
+
+	vector<double> spline_points_s, spline_points_x, spline_points_y, new_s_traj, 
+												 new_x_traj, new_y_traj;
+
+	double pos_s = this->my_car.getS();
+	double pos_x = this->my_car.getX();
+	double pos_y = this->my_car.getY();
+	double s_dot = this->my_car.getS_D();
+	double s_ddot = this->my_car.getS_DD();
 
 
+	double angle = this->my_car.getYAW();
 
-	double ref_x = this->my_car.getX();
-	double ref_y = this->my_car.getY();
-	double ref_yaw = this->my_car.getYAW();
 
-	cout << "Points: " << endl;
-	for (int i=0; i < this->points_for_spline[0].size(); i++ )
-	{
-		
-		double shift_x = this->points_for_spline[0][i] - ref_x;
-		double shift_y = this->points_for_spline[1][i] - ref_y;
-
-		this->points_for_spline[0][i] = (shift_x*cos(0-ref_yaw) - shift_y*sin(0-ref_yaw));
-		this->points_for_spline[1][i] = (shift_x*sin(0-ref_yaw) + shift_y*cos(0-ref_yaw));
-
+	double prev_s = pos_s - s_dot * DELTA_T;
+					
+	// first two points of coarse trajectory, to ensure spline begins smoothly
+	if (this->prev_path_size >= 2) {
+		spline_points_s.push_back(prev_s);
+		spline_points_x.push_back(this->current_trajectory[0][this->prev_path_size-2]);
+		spline_points_y.push_back(this->current_trajectory[1][this->prev_path_size-2]);
+		spline_points_s.push_back(pos_s);
+		spline_points_x.push_back(this->current_trajectory[0][this->prev_path_size-1]);
+		spline_points_y.push_back(this->current_trajectory[1][this->prev_path_size-1]);
+	} else {
+		double prev_s = pos_s - 1;
+		double prev_x = pos_x - cos(angle);
+		double prev_y = pos_y - sin(angle);
+		spline_points_s.push_back(prev_s);
+		spline_points_x.push_back(prev_x);
+		spline_points_y.push_back(prev_y);
+		spline_points_s.push_back(pos_s);
+		spline_points_x.push_back(pos_x);
+		spline_points_y.push_back(pos_y);
 	}
 
-	tk::spline s;
-	s.set_points(this->points_for_spline[0], this->points_for_spline[1]);
+	double s1 = pos_s + 30;
+	double d1 = target_d[0];
+	vector<double> xy1 = this->map.getXY(s1, d1);
+	double x1 = xy1[0];
+	double y1 = xy1[1];
+	spline_points_s.push_back(s1);
+	spline_points_x.push_back(x1);
+	spline_points_y.push_back(y1);
+	double s2 = s1 + 30;
+	double d2 = d1;
+	vector<double> xy2 = this->map.getXY(s2, d2);
+	double x2 = xy2[0];
+	double y2 = xy2[1];
+	spline_points_s.push_back(s2);
+	spline_points_x.push_back(x2);
+	spline_points_y.push_back(y2);
 
-	double target_x = 30.0;
-	double target_y = s(target_x);
-	double target_dist = sqrt(target_x*target_x + target_y*target_y);
+	// //cout << "Current S: " << pos_s << endl;
+	// //cout << "Current V: " << s_dot << endl;
+	// //cout << "Current A: " << s_ddot << endl;
 
-	double x_add_on = 0;
+	double target_s_dot = target_s[1];
 
-	// fill in rest of path planner
+	double current_s = pos_s;
+	double current_v = s_dot;
+	double current_a = s_ddot;
+	for (int i = 0; i < (POINTS_PER_TRAJECTORY - this->prev_path_size); i++) {
+		double v_incr, a_incr;
+		if (fabs(target_s_dot - current_v) < 2 * VELOCITY_INCREMENT_LIMIT) {
+			v_incr = 0;
+		} else {
 
-	for (int i = 0; i < POINTS_PER_TRAJECTORY-this->prev_path_size; i++)
-	{
-		double N = (target_dist/(.02*ref_vel));
-		double x_point = x_add_on + target_x/N;
-		double y_point = s(x_point);
-
-		x_add_on = x_point;
-
-
-		double x_ref = x_point;
-		double y_ref = y_point;
-
-		// rotate back to normal
-		x_point = (x_ref*cos(ref_yaw) - y_ref*sin(ref_yaw));
-		y_point = (x_ref*sin(ref_yaw) + y_ref*cos(ref_yaw));
-
-
-		x_point += ref_x;
-		y_point += ref_y;
-
-		this->trajectory[0].push_back(x_point);
-
-		this->trajectory[1].push_back(y_point);
+			v_incr = (target_s_dot - current_v)/(fabs(target_s_dot - current_v)) * VELOCITY_INCREMENT_LIMIT;
+		}
+		current_v += v_incr;
+		current_s += current_v * DELTA_T;
+		new_s_traj.push_back(current_s);
 	}
 
-	return this->trajectory;
+	new_x_traj = this->map.interpolate_points(spline_points_s, spline_points_x, new_s_traj);
+	new_y_traj = this->map.interpolate_points(spline_points_s, spline_points_y, new_s_traj);
+
+
+
+	vector<double> new_trajectory_x;
+	vector<double> new_trajectory_y;
+
+	for(int i = 0; i < this->prev_path_size; i++) {
+		new_trajectory_x.push_back(this->current_trajectory[0][i]);
+		new_trajectory_y.push_back(this->current_trajectory[1][i]);
+	} 
+	for (int i = 0; i < new_x_traj.size(); i++) {
+		new_trajectory_x.push_back(new_x_traj[i]);
+		new_trajectory_y.push_back(new_y_traj[i]);
+	} 
+
+	return {new_trajectory_x, new_trajectory_y};
 
 }
 

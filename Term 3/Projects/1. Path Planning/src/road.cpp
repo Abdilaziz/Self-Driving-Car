@@ -27,7 +27,7 @@ bool Road::isVehicleAhead(Vehicle &my_car, LANES lane) {
 	for (int i = 0; i < vehicles.size(); i++) {
 		double distance = vehicles[i].getS() - my_car.getS();
 		if ( (distance > 0) && (distance < SAFE_VEHICLE_DISTANCE) ) {
-			this->vehicle_ahead_speed = vehicles[i].getV();
+			this->vehicle_ahead = vehicles[i];
 			vehicleAhead = true;
 			break;
 		}
@@ -49,6 +49,7 @@ bool Road::isLaneChangeSafe(Vehicle &my_car, LANES lane) {
 	}
 
 	bool laneIsSafe = true;
+
 
 	for (int i = 0; i < vehicles.size(); i++) {
 		double distance = fabs(vehicles[i].getS() - my_car.getS());
@@ -80,4 +81,14 @@ LANES Road::availableLane(Vehicle &my_car) {
   }
   return target_lane;
 
+}
+
+bool Road::isLaneChangeSafe(Vehicle &my_car, int lane) {
+	LANES cur_lane = (LANES) lane;
+	return isLaneChangeSafe(my_car, cur_lane);
+}
+
+bool Road::isVehicleAhead(Vehicle &my_car, int lane) {
+	LANES cur_lane = (LANES) lane;
+	return isVehicleAhead(my_car, cur_lane);
 }

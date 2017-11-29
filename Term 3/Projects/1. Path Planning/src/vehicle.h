@@ -2,7 +2,9 @@
 #define VEHICLE_H
 
 #include <vector>
+#include <math.h>
 #include "constants.h"
+#include "map.h"
 
 using namespace std;
 
@@ -13,42 +15,47 @@ class Vehicle {
 		int id;
 		double x;
 		double y;
-		double v;
+
 		double s;
+		double s_d;
+		double s_dd;
+
 		double d;
+		double d_d;
+		double d_dd;
 		double yaw;
 
 		LANES lane;
 
 
-		vector<double> previous_s;
-		vector<double> previous_d;
-
-
-
 	public:
 
 		Vehicle();
-		Vehicle(int id, double x, double y, double v, double s, double d);
+		Vehicle(int id, double x, double y, double v, double s, double d );
 		~Vehicle(){};
 
-		void set_main_vehicle_values(double x, double y, double v, double s, double d, double yaw);
+		void set_main_vehicle_values(Map map, double car_x, double car_y, double car_s, double car_d, double car_yaw, double car_speed, 
+                                          vector<double> previous_path_x, vector<double> previous_path_y, double end_path_s, double end_path_d);
 
-		int getID();
-		double getX();
-		double getY();
-		double getV();
-		double getS();
-		double getD();
-		double getYAW();
+		int getID(){return this->id;};
 
-		LANES getLane();
+		double getX(){return this->x;};
+		double getY(){return this->y;};
 
-		vector<double> getPREV_S();
-		vector<double> getPREV_D();
+		double getS(){return this->s;};
+		double getS_D(){return this->s_d;};
+		double getS_DD(){return this->s_dd;};
 
-		void setPREV_S(vector<double> previous_s);
-		void setPREV_D(vector<double> previous_d);
+		double getD(){return this->d;};
+		double getD_D(){return this->d_d;};
+		double getD_DD(){return this->d_dd;};
+
+
+		double getYAW(){return this->yaw;};
+
+		LANES getLane(){return this->lane;};
+
+		vector<vector<double>> generatePrediction(double traj_start_time, double duration);
 
 
 };

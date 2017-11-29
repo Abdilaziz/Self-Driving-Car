@@ -60,12 +60,12 @@ double lane_speed(map<int, vector<Vehicle>> predictions, int lane) {
     return -1.0;
 }
 
-double calculate_cost(Vehicle vehicle, map<int, vector<Vehicle>> predictions, vector<Vehicle> trajectory) {
+double calculate_cost(Vehicle &my_car, map<int, vector<vector<double>>> &predictions, vector<vector<double>> trajectory) {
     /*
     Sum weighted cost functions to get total cost for trajectory.
     */
-    map<string, double> trajectory_data = get_helper_data(vehicle, trajectory, predictions);
-    double cost = 0.0;
+    map<string, double> trajectory_data = get_helper_data(my_car, trajectory, predictions);
+    double cost = 0.0
 
     //Add additional cost functions here.
     vector< function<double(Vehicle, vector<Vehicle>, map<int, vector<Vehicle>>, map<string, double>)>> cf_list = {goal_distance_cost, inefficiency_cost};
@@ -80,7 +80,7 @@ double calculate_cost(Vehicle vehicle, map<int, vector<Vehicle>> predictions, ve
 
 }
 
-map<string, double> get_helper_data(Vehicle vehicle, vector<Vehicle> trajectory, map<int, vector<Vehicle>> predictions) {
+map<string, double> get_helper_data(Vehicle &my_car, vector<vector<double>> trajectory, map<int, vector<vector<double>>> predictions) {
     /*
     Generate helper data to use in cost functions:
     indended_lane: the current lane +/- 1 if vehicle is planning or executing a lane change.
@@ -94,6 +94,8 @@ map<string, double> get_helper_data(Vehicle vehicle, vector<Vehicle> trajectory,
     Vehicle trajectory_last = trajectory[1];
     double intended_lane;
 
+    
+
     if (trajectory_last.state.compare("PLCL") == 0) {
         intended_lane = trajectory_last.lane + 1;
     } else if (trajectory_last.state.compare("PLCR") == 0) {
@@ -102,7 +104,7 @@ map<string, double> get_helper_data(Vehicle vehicle, vector<Vehicle> trajectory,
         intended_lane = trajectory_last.lane;
     }
 
-    double distance_to_goal = vehicle.goal_s - trajectory_last.s;
+    double distance_to_goal = my_car.goal_s - trajectory_last.s;
     double final_lane = trajectory_last.lane;
     trajectory_data["intended_lane"] = intended_lane;
     trajectory_data["final_lane"] = final_lane;
