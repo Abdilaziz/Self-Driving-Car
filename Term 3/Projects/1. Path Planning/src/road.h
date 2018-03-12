@@ -13,12 +13,10 @@ using namespace std;
 class Road {
 
 	private:
-		vector<Vehicle> left_lane;
-		vector<Vehicle> center_lane;
-		vector<Vehicle> right_lane;
 		Vehicle vehicle_ahead;
+		Vehicle vehicle_behind;
 
-		map<int, vector<vector<double>>> predictions;
+		map<int, vector<Vehicle>> predictions;
 
 
 	public:
@@ -27,23 +25,17 @@ class Road {
 
 		void setVehiclesOnRoad(vector<Vehicle> left_lane, vector<Vehicle> center_lane, vector<Vehicle> right_lane);
 
-		bool isVehicleAhead(Vehicle &my_car, LANES lane);
-		bool isLaneChangeSafe(Vehicle &my_car, LANES lane);
+		bool isVehicleAhead(double s, LANES lane);
 
-		bool isVehicleAhead(Vehicle &my_car, int lane);
-		bool isLaneChangeSafe(Vehicle &my_car, int lane);
+		bool isVehicleBehind(double s, LANES lane);
 
-		LANES availableLane(Vehicle &my_car);
+		Vehicle getVehicleAhead() { return this->vehicle_ahead;};
+		Vehicle getVehicleBehind() { return this->vehicle_behind; };
+	
+		map<int, vector<Vehicle>> getPredictions(){ return this->predictions; };
 
-		Vehicle getVehicleAhead() {return this->vehicle_ahead;};
-		void setVehicleAhead(Vehicle vehicle_ahead) { this->vehicle_ahead = vehicle_ahead; };
-
-
-		void generatePredctions(double traj_start_time, double duration);
+		void setPredictions(map<int,vector<Vehicle>> predictions) { this->predictions = predictions; };
 		
-		map<int,vector<vector<double>>> getPredictions(){ return this->predictions; };
-
-		void setPredictions(map<int,vector<vector<double>>> predictions) { this->predictions = predictions; };
 };
 
 

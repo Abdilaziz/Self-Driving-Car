@@ -31,7 +31,7 @@ class Vehicle {
 	public:
 
 		Vehicle();
-		Vehicle(int id, double x, double y, double v, double s, double d );
+		Vehicle(double s, double d, double v);
 		~Vehicle(){};
 
 		void set_main_vehicle_values(Map map, double car_x, double car_y, double car_s, double car_d, double car_yaw, double car_speed, 
@@ -55,7 +55,7 @@ class Vehicle {
 
 		LANES getLane(){return this->lane;};
 
-		vector<vector<double>> generatePrediction(double traj_start_time, double duration);
+		vector<Vehicle> generatePrediction(double traj_start_time, double duration);
 
 
 };

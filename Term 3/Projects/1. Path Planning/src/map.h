@@ -2,10 +2,11 @@
 #define MAP_H
 
 #include <fstream>
-#include<iostream>
-#include<string>
+#include <iostream>
+#include <string>
 #include <vector>
 #include <sstream>
+
 #include "spline.h"
 #include "constants.h"
 

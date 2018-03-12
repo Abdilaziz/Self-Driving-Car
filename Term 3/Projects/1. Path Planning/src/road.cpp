@@ -1,94 +1,43 @@
 #include "road.h"
 
 
+bool Road::isVehicleAhead(double s, LANES lane) {
 
-void Road::setVehiclesOnRoad(vector<Vehicle> left_lane, vector<Vehicle> center_lane, vector<Vehicle> right_lane) {
-	this->left_lane = left_lane;
-	this->center_lane = center_lane;
-	this->right_lane = right_lane;
+	double min_s = MAX_S;
+	bool found_vehicle = false;
+    Vehicle temp_vehicle;
+
+    for (map<int, vector<Vehicle>>::iterator it = this->predictions.begin(); it != this->predictions.end(); ++it) {
+        temp_vehicle = it->second[0];
+        double distance = temp_vehicle.getS() - s;
+        if (temp_vehicle.getLane() == lane && distance >= 0 && distance <= SAFE_VEHICLE_DISTANCE && temp_vehicle.getS() < min_s ) { // && ((temp_vehicle.getS() - s) < SAFE_VEHICLE_DISTANCE ) 
+            min_s = temp_vehicle.getS();
+            this->vehicle_ahead = temp_vehicle;
+            found_vehicle = true;
+        }
+	}
+    // cout << "Closest Ahead Distance: " <<  (min_s-s) << endl;
+	return found_vehicle;
 }
 
 
-// checking if there is ample distance between my_car and the vehicle ahead in the same lane (dist)
-bool Road::isVehicleAhead(Vehicle &my_car, LANES lane) {
-	vector<Vehicle> vehicles;
-	if (lane == LANES::LEFT) {
-		vehicles = this->left_lane;
-	}
-	else if (lane == LANES::CENTER) {
-		vehicles = this->center_lane;
-	}
-	else {
-		vehicles = this->right_lane;
-	}
+bool Road::isVehicleBehind(double s, LANES lane) {
 
-	bool vehicleAhead = false;
+	double max_s = -1;
+	bool found_vehicle = false;
+    Vehicle temp_vehicle;
 
-	for (int i = 0; i < vehicles.size(); i++) {
-		double distance = vehicles[i].getS() - my_car.getS();
-		if ( (distance > 0) && (distance < SAFE_VEHICLE_DISTANCE) ) {
-			this->vehicle_ahead = vehicles[i];
-			vehicleAhead = true;
-			break;
-		}
+    for (map<int, vector<Vehicle>>::iterator it = this->predictions.begin(); it != this->predictions.end(); ++it) {
+        temp_vehicle = it->second[0];
+        double distance = s - temp_vehicle.getS();
+        if (temp_vehicle.getLane() == lane && distance >= 0 && distance <= SAFE_VEHICLE_DISTANCE && temp_vehicle.getS() > max_s ) { // && ((s-temp_vehicle.getS()) < SAFE_VEHICLE_DISTANCE ) 
+            max_s = temp_vehicle.getS();
+            this->vehicle_behind = temp_vehicle;
+            found_vehicle = true;
+        }
 	}
 
-	return vehicleAhead;
-}
+    // cout << "Closest Behind Distance: " << (s-max_s) << endl;
 
-bool Road::isLaneChangeSafe(Vehicle &my_car, LANES lane) {
-	vector<Vehicle> vehicles;
-	if (lane == LANES::LEFT) {
-		vehicles = this->left_lane;
-	}
-	else if (lane == LANES::CENTER) {
-		vehicles = this->center_lane;
-	}
-	else {
-		vehicles = this->right_lane;
-	}
-
-	bool laneIsSafe = true;
-
-
-	for (int i = 0; i < vehicles.size(); i++) {
-		double distance = fabs(vehicles[i].getS() - my_car.getS());
-		if ( distance < SAFE_LANE_CHANGE_SPACE) {
-			laneIsSafe = false;
-			break;
-		}
-	}
-
-	return laneIsSafe;
-}
-
-
-LANES Road::availableLane(Vehicle &my_car) {
-
-  LANES car_lane = my_car.getLane();
-  LANES target_lane = car_lane;
-
-  if (car_lane == LANES::LEFT || car_lane == LANES::RIGHT) {
-    if (this->isLaneChangeSafe(my_car, LANES::CENTER)) {
-      target_lane = LANES::CENTER;
-    }
-  } else {
-    if (this->isLaneChangeSafe(my_car, LANES::LEFT)) {
-      target_lane = LANES::LEFT;
-    } else if (this->isLaneChangeSafe(my_car, LANES::RIGHT)) {
-      target_lane = LANES::RIGHT;
-    }
-  }
-  return target_lane;
-
-}
-
-bool Road::isLaneChangeSafe(Vehicle &my_car, int lane) {
-	LANES cur_lane = (LANES) lane;
-	return isLaneChangeSafe(my_car, cur_lane);
-}
-
-bool Road::isVehicleAhead(Vehicle &my_car, int lane) {
-	LANES cur_lane = (LANES) lane;
-	return isVehicleAhead(my_car, cur_lane);
+	return found_vehicle;
 }

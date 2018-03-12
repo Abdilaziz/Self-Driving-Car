@@ -9,18 +9,17 @@
 #include "Eigen-3.3/Eigen/QR"
 #include "json.hpp"
 
-#include <math.h>
 #include "constants.h"
 #include "map.h"
 #include "vehicle.h"
 #include "road.h"
-#include "path_planning.h"
-
+#include "path_planner.h"
 
 using namespace std;
 
 // for convenience
 using json = nlohmann::json;
+
 
 // Checks if the SocketIO event has JSON data.
 // If there is data the JSON object in string format will be returned,
@@ -41,16 +40,15 @@ string hasData(string s) {
 int main() {
   uWS::Hub h;
 
-
   // Waypoint map to read from
   string map_file_ = "../data/highway_map.csv";
-
-  Map world = Map(map_file_);
-  Road road;
+  // initialize the waypoint data
+	Map world = Map(map_file_);
   Vehicle my_car;
+  Road road;
   Path_Planner path_planner;
 
-  h.onMessage([&world, &road, &my_car, &path_planner](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+  h.onMessage([&world, &my_car, &road, &path_planner](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -84,45 +82,32 @@ int main() {
           	double end_path_s = j[1]["end_path_s"];
           	double end_path_d = j[1]["end_path_d"];
 
-            json msgJson;
-
-            // 50 points in each vector
-
-            vector<double> next_x_vals;
-            vector<double> next_y_vals;
-
           	// Sensor Fusion Data, a list of all other cars on the same side of the road.
           	auto sensor_fusion = j[1]["sensor_fusion"];
 
-            // format for sensor_fusion [id, x, y, vx, vy, s, d]
-            // use vx and vy to determine where the cars will be in the future
-            
-            // For instance, if you were to assume that the tracked car kept moving along the road,
-            // then its future predicted Frenet s value will be its current s value plus its (transformed)
-            // total velocity (m/s) multiplied by the time elapsed into the future (s).
+          	json msgJson;
 
+          	vector<double> next_x_vals;
+          	vector<double> next_y_vals;
 
-            world.update_local_waypoints( car_x,  car_y,  car_yaw);
-
+            // uses the previous 5 and next 5 waypoints to interpolate waypoints to more accurate convert between Frenet Coordinates and Cartesian Coordinates
+						world.update_local_waypoints(car_x, car_y, car_yaw);
 
             my_car.set_main_vehicle_values( world, car_x,  car_y,  car_s,  car_d,  car_yaw, car_speed, 
                                             previous_path_x, previous_path_y,  end_path_s,  end_path_d );
 
-
-            vector<Vehicle> left_lane;
-            vector<Vehicle> center_lane;
-            vector<Vehicle> right_lane;
-
             int prev_path_size = previous_path_x.size();
             int subpath_size = min(OLD_POINTS_TO_KEEP, prev_path_size);
+            int new_traj_size = POINTS_PER_TRAJECTORY - subpath_size;
 
-            double traj_start_time = subpath_size * DELTA_T;
-            double duration = POINTS_TO_TARGET*DT - subpath_size*DELTA_T;
+            double traj_start_time = subpath_size * DELTA_T; // Simulator used 50 points/s so each point is 0.02s of the path
 
-            map<int, vector<vector<double>>> predictions;
+            // cout << "NEW POINTS: " << new_traj_size << endl;
 
-            // organize observed vehicles into seperate vectors for what lane they are currently in
-            // and generate predictions
+            map<int, vector<Vehicle>> predictions;
+
+            // generate predictions for vehicles in the horizon (horizon is new_traj_size*DELTA_T)
+
             for (int i = 0; i < sensor_fusion.size(); i++) {
 
               int id = sensor_fusion[i][0];
@@ -134,47 +119,26 @@ int main() {
               double d = sensor_fusion[i][6];
               double v = sqrt(vx*vx + vy*vy);
 
-              Vehicle obsv_vehicle = Vehicle(id, x, y, v, s, d);
+              Vehicle obsv_vehicle = Vehicle(s, d, v);
 
-              vector<vector<double>> prediction = obsv_vehicle.generatePrediction(traj_start_time, duration);
+              vector<Vehicle> prediction = obsv_vehicle.generatePrediction(traj_start_time, new_traj_size);
 
               predictions[id] = prediction;
 
-              LANES lane = obsv_vehicle.getLane();
-
-              if (lane == LANES::LEFT) {
-                left_lane.push_back(obsv_vehicle);
-              } else if (lane == LANES::CENTER) {
-                center_lane.push_back(obsv_vehicle);
-              } else {
-                right_lane.push_back(obsv_vehicle);
-              }
             }
 
             road.setPredictions(predictions);
 
-            road.setVehiclesOnRoad(left_lane, center_lane, right_lane);
-
-
-
-
-
             vector<vector<double>> current_trajectory = {previous_path_x, previous_path_y};
 
 
-
+            // send all data to path planner to determine a new optimal trajectory that includes our previous path x and y
             vector<vector<double>> new_trajectory = path_planner.get_new_trajectory(world, road, my_car, current_trajectory, subpath_size);
-
 
 
             next_x_vals = new_trajectory[0];
             next_y_vals = new_trajectory[1];
 
-            // std::cout << "sent trajectory to sim. Size: " << next_x_vals.size() << endl; 
-            // std::cout << " " << endl;
-
-
-          	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
           	msgJson["next_x"] = next_x_vals;
           	msgJson["next_y"] = next_y_vals;
 

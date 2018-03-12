@@ -23,19 +23,15 @@ Vehicle::Vehicle() {
 }
 
 
-Vehicle::Vehicle(int id, double x, double y, double v, double s, double d){
-  this->id = id;
-  this->x = x;
-  this->y = y;
+Vehicle::Vehicle(double s, double d, double v){
+
   this->s_d = v;
   this->s = s;
   this->d = d;
 
-  this->s_d = 0;
   this->s_dd = 0;
   this->d_d = 0;
   this->d_dd = 0;
-  this->yaw = 0;
 
   if (d >= 0 && d < LANE_WIDTH) {
   	this->lane = LANES::LEFT;
@@ -57,6 +53,7 @@ void Vehicle::set_main_vehicle_values(Map map, double car_x, double car_y, doubl
   double pos_x, pos_y, pos_x2, pos_y2, angle, vel_x1, vel_y1,
          pos_x3, pos_y3, vel_x2, vel_y2, acc_x, acc_y;
   double yaw;
+
   int prev_path_size = previous_path_x.size();
 
   int subpath_size = min(OLD_POINTS_TO_KEEP, prev_path_size );
@@ -89,7 +86,7 @@ void Vehicle::set_main_vehicle_values(Map map, double car_x, double car_y, doubl
     pos_y2 = previous_path_y[subpath_size-2];
     angle = atan2(pos_y-pos_y2,pos_x-pos_x2);
     vector<double> frenet = map.getFrenet(pos_x, pos_y, angle, map.getLocalWaypointsX(), map.getLocalWaypointsY(), map.getLocalWaypointsS());
-    //vector<double> frenet = getFrenet(pos_x, pos_y, angle, map_waypoints_x, map_waypoints_y, map_waypoints_s);
+    
     pos_s = frenet[0];
     pos_d = frenet[1];
 
@@ -146,26 +143,25 @@ void Vehicle::set_main_vehicle_values(Map map, double car_x, double car_y, doubl
   else if (this->d >= LANE_WIDTH  &&  this->d < 2*LANE_WIDTH) {
     this->lane = LANES::CENTER;
   }
-  else if (this->d >= 2*LANE_WIDTH && this->d <= 3*LANE_WIDTH ) {
+  else if (this->d >= 2*LANE_WIDTH && this->d < 3*LANE_WIDTH ) {
     this->lane = LANES::RIGHT;
   }
 }
 
 
 
-vector<vector<double>> Vehicle::generatePrediction(double traj_start_time, double duration){
+vector<Vehicle> Vehicle::generatePrediction(double traj_start_time, double new_traj_size){
 
   // Generates a list of predicted s and d positions for dummy constant-speed vehicles
   // Because ego car trajectory is considered from end of previous path, we should also consider the 
   // trajectories of other cars starting at that time.
 
-  vector<vector<double>> predictions;
-  for( int i = 0; i < POINTS_TO_TARGET; i++)
+  vector<Vehicle> predictions;
+  for( int i = 0; i < new_traj_size; i++)
   {
-    double t = traj_start_time + (i * duration/POINTS_TO_TARGET);
+    double t = traj_start_time + (i * DELTA_T); // duration/POINTS_TO_TARGET
     double pred_s = this->s + this->s_d * t;
-    vector<double> s_and_d = {pred_s, this->d}; // always predicting same lane
-    predictions.push_back(s_and_d);
+    predictions.push_back(Vehicle(pred_s, this->d, this->s_d));
   }
   return predictions;
 
