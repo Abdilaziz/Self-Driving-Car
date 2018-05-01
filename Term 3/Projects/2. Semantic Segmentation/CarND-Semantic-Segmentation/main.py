@@ -63,41 +63,41 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
 
     # add 1x1 convolution on top of VGG-16 to reduce number of filters from 4096 to the number of classes for our specific model
     # in this example we only have 2 classes for pixels, road or not road
-    tf.Print(layer7_out, [tf.shape(vgg_layer7_out]))
+    # tf.Print(layer7_out, [tf.shape(vgg_layer7_out]))
     layer7_conv = tf.layers.conv2d(vgg_layer7_out, num_classes, 1, padding='same', kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
-    tf.Print(layer7_conv, [tf.shape(layer7_conv]))
+    # tf.Print(layer7_conv, [tf.shape(layer7_conv]))
 
     # upsample to size of layer 4
     # stride of 2 is what is upsampling by 2
     # padding of same to keep the same img size as the input
     # shape of final convolutional layer output is 4-Dimensional: (batch_size, original_height, original_width, num_classes)
     layer4_upsmp7 = tf.layers.conv2d_transpose(layer7_conv, num_classes, 4, strides=(2,2), padding='same', kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
-    tf.Print(layer4_upsmp7, [tf.shape(layer4_upsmp7]))
+    # tf.Print(layer4_upsmp7, [tf.shape(layer4_upsmp7]))
 
     # 1x1 conv to reduce classes
     layer4_conv = tf.layers.conv2d(vgg_layer4_out, num_classes, 1, padding='same', kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
-    tf.Print(layer4_conv, [tf.shape(layer4_conv]))
+    # tf.Print(layer4_conv, [tf.shape(layer4_conv]))
 
     # Skip Connections combine the output of layers further back in the network
     # Layer 7 was required to be upsampled in order to be the same size as layer 4
 
     layer4out = tf.add(layer4_upsmp7, layer4_conv )
-    tf.Print(layer4out, [tf.shape(layer4out]))
+    # tf.Print(layer4out, [tf.shape(layer4out]))
 
     # upsample to size of layer 3
     layer3_upsmp4 = tf.layers.conv2d_transpose(layer4out, num_classes, 4, strides=(2,2), padding='same', kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
-    tf.Print(layer3_upsmp4, [tf.shape(layer3_upsmp4]))
+    # tf.Print(layer3_upsmp4, [tf.shape(layer3_upsmp4]))
 
     # 1x1 conv to reduce classes
     layer3_conv = tf.layers.conv2d(vgg_layer3_out, num_classes, 1, padding='same', kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
-    tf.Print(layer3_conv, [tf.shape(layer3_conv]))
+    # tf.Print(layer3_conv, [tf.shape(layer3_conv]))
 
     layer3out = tf.add(layer3_upsmp4, layer3_conv)
-    tf.Print(layer3out, [tf.shape(layer3out]))
+    # tf.Print(layer3out, [tf.shape(layer3out]))
 
     # upsample to size of orig image
     nn_last_layer = tf.layers.conv2d_transpose(layer3out, num_classes, 16, strides=(8,8), padding='same', kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
-    tf.Print(nn_last_layer, [tf.shape(nn_last_layer]))
+    # tf.Print(nn_last_layer, [tf.shape(nn_last_layer]))
 
     return nn_last_layer
 tests.test_layers(layers)
@@ -118,7 +118,7 @@ def optimize(nn_last_layer, correct_label, learning_rate, num_classes):
     # output layer tensor is 4D so we reshape to 2D
     logits = tf.reshape(nn_last_layer, (-1, num_classes))
 
-    cross_entropy_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits, labels=correct_label))
+    cross_entropy_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=correct_label))
 
     # use Adam Optimizer due to less hyper paramerters
     optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
@@ -144,10 +144,12 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
     :param keep_prob: TF Placeholder for dropout keep probability
     :param learning_rate: TF Placeholder for learning rate
     """
-    # TODO: Implement function
+    
+    init = tf.global_variables_initializer()
+    sess.run(init)
 
     for i in range(epochs):
-        print("Epoch {f}".format(i))
+        print("Epoch {:.1f}".format(i))
         for image, label in get_batches_fn(batch_size):
             # training
             _, loss = sess.run([train_op, cross_entropy_loss], feed_dict={input_image: image, correct_label: label, keep_prob: 0.5, learning_rate: 0.0009})
@@ -184,7 +186,7 @@ def run():
         # OPTIONAL: Augment Images for better results
         #  https://datascience.stackexchange.com/questions/5224/how-to-prepare-augment-images-for-neural-network
 
-        correct_label = tf.placeholder(tf.init32, [None, None, None, num_classes], name='correct_label')
+        correct_label = tf.placeholder(tf.int32, [None, None, None, num_classes], name='correct_label')
         learning_rate = tf.placeholder(tf.float32, name='learning_rate')
 
 
