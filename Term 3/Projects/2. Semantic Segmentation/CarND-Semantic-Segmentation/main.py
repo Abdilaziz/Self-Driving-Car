@@ -63,19 +63,21 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
 
     # add 1x1 convolution on top of VGG-16 to reduce number of filters from 4096 to the number of classes for our specific model
     # in this example we only have 2 classes for pixels, road or not road
+
+    # Initializers like truncated_normal_initializer are used to initialize variables with sensible values (before being trained)
     # tf.Print(layer7_out, [tf.shape(vgg_layer7_out]))
-    layer7_conv = tf.layers.conv2d(vgg_layer7_out, num_classes, 1, padding='same', kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
+    layer7_conv = tf.layers.conv2d(vgg_layer7_out, num_classes, 1, padding='same', kernel_initializer=tf.truncated_normal_initializer(stddev=0.01) , kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
     # tf.Print(layer7_conv, [tf.shape(layer7_conv]))
 
     # upsample to size of layer 4
     # stride of 2 is what is upsampling by 2
     # padding of same to keep the same img size as the input
     # shape of final convolutional layer output is 4-Dimensional: (batch_size, original_height, original_width, num_classes)
-    layer4_upsmp7 = tf.layers.conv2d_transpose(layer7_conv, num_classes, 4, strides=(2,2), padding='same', kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
+    layer4_upsmp7 = tf.layers.conv2d_transpose(layer7_conv, num_classes, 4, strides=(2,2), padding='same', kernel_initializer=tf.truncated_normal_initializer(stddev=0.01) , kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
     # tf.Print(layer4_upsmp7, [tf.shape(layer4_upsmp7]))
 
     # 1x1 conv to reduce classes
-    layer4_conv = tf.layers.conv2d(vgg_layer4_out, num_classes, 1, padding='same', kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
+    layer4_conv = tf.layers.conv2d(vgg_layer4_out, num_classes, 1, padding='same', kernel_initializer=tf.truncated_normal_initializer(stddev=0.01) , kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
     # tf.Print(layer4_conv, [tf.shape(layer4_conv]))
 
     # Skip Connections combine the output of layers further back in the network
@@ -85,18 +87,18 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
     # tf.Print(layer4out, [tf.shape(layer4out]))
 
     # upsample to size of layer 3
-    layer3_upsmp4 = tf.layers.conv2d_transpose(layer4out, num_classes, 4, strides=(2,2), padding='same', kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
+    layer3_upsmp4 = tf.layers.conv2d_transpose(layer4out, num_classes, 4, strides=(2,2), padding='same', kernel_initializer=tf.truncated_normal_initializer(stddev=0.01) , kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
     # tf.Print(layer3_upsmp4, [tf.shape(layer3_upsmp4]))
 
     # 1x1 conv to reduce classes
-    layer3_conv = tf.layers.conv2d(vgg_layer3_out, num_classes, 1, padding='same', kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
+    layer3_conv = tf.layers.conv2d(vgg_layer3_out, num_classes, 1, padding='same', kernel_initializer=tf.truncated_normal_initializer(stddev=0.01) , kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
     # tf.Print(layer3_conv, [tf.shape(layer3_conv]))
 
     layer3out = tf.add(layer3_upsmp4, layer3_conv)
     # tf.Print(layer3out, [tf.shape(layer3out]))
 
     # upsample to size of orig image
-    nn_last_layer = tf.layers.conv2d_transpose(layer3out, num_classes, 16, strides=(8,8), padding='same', kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
+    nn_last_layer = tf.layers.conv2d_transpose(layer3out, num_classes, 16, strides=(8,8), padding='same', kernel_initializer=tf.truncated_normal_initializer(stddev=0.01) , kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
     # tf.Print(nn_last_layer, [tf.shape(nn_last_layer]))
 
     return nn_last_layer
@@ -118,14 +120,19 @@ def optimize(nn_last_layer, correct_label, learning_rate, num_classes):
     # output layer tensor is 4D so we reshape to 2D
     logits = tf.reshape(nn_last_layer, (-1, num_classes))
 
+    # in order to add regularization, losses need to be added manually to our cost function
+    reg_losses = tf.losses.get_regularization_loss()
+
     cross_entropy_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=correct_label))
+
+    loss = cross_entropy_loss +  reg_losses
 
     # use Adam Optimizer due to less hyper paramerters
     optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
-    train_op = optimizer.minimize(cross_entropy_loss)
+    train_op = optimizer.minimize(loss)
 
 
-    return logits, train_op, cross_entropy_loss
+    return logits, train_op, loss
 tests.test_optimize(optimize)
 
 
@@ -152,7 +159,7 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
         print("Epoch {:.1f}".format(i))
         for image, label in get_batches_fn(batch_size):
             # training
-            _, loss = sess.run([train_op, cross_entropy_loss], feed_dict={input_image: image, correct_label: label, keep_prob: 0.5, learning_rate: 0.0009})
+            _, loss = sess.run([train_op, cross_entropy_loss], feed_dict={input_image: image, correct_label: label, keep_prob: 0.5, learning_rate: 1e-4})
             print("Loss: {:.3f}".format(loss))
         print("Next Epoch")
 
@@ -174,7 +181,7 @@ def run():
     #  https://www.cityscapes-dataset.com/
 
     # Parameters
-    epochs = 10
+    epochs = 30
     batch_size = 5
 
     with tf.Session() as sess:
@@ -192,10 +199,10 @@ def run():
 
         input_image, keep_prob, layer3, layer4, layer7 = load_vgg(sess, vgg_path)
         nn_last_layer = layers(layer3, layer4, layer7, num_classes)
-        logits, train_op, cross_entropy_loss = optimize(nn_last_layer, correct_label, learning_rate, num_classes)
+        logits, train_op, loss = optimize(nn_last_layer, correct_label, learning_rate, num_classes)
 
         # Train NN using the train_nn function
-        train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_loss, input_image, correct_label, keep_prob, learning_rate )
+        train_nn(sess, epochs, batch_size, get_batches_fn, train_op, loss, input_image, correct_label, keep_prob, learning_rate )
 
         # Save inference data using helper.save_inference_samples
         helper.save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, input_image)
